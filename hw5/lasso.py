@@ -21,8 +21,12 @@ def GradLassoObjective(wplus, wminus, Phi, Y, lmbd):
     FILL IN
     '''
 
-    gradwplus = np.zeros(wplus.shape)    # TODO 
-    gradwminus = np.zeros(wminus.shape)  # TODO 
+    #gradwplus = np.zeros(wplus.shape)    # TODO 
+    #gradwminus = np.zeros(wminus.shape)  # TODO
+    n = Phi.shape[0]
+    gradwplus = (2/n) * ((Phi.T@Phi) @ (wplus-wminus) - Phi.T@Y) + lmbd*np.sign(wplus)
+    gradwminus = (2/n) * ((Phi.T@Phi) @ (wminus-wplus) + Phi.T@Y) + lmbd*np.sign(wminus)
+    
     return gradwplus, gradwminus
 
 
@@ -32,6 +36,8 @@ def ProjectionPositiveOrthant(x):
     FILL IN
     '''
     y = x # TODO 
+    negidx = y < 0
+    y[negidx] = 0.0
     return y
 
 
@@ -50,9 +56,9 @@ def getStepSize(wplus, wminus, Phi, Y, lmbd, gradwplus,
     
     FILL IN
     '''
-    alpha, beta, sigma = 1., .1, .1
+    alpha, beta, sigma = 1., .01, .1
     wplusnew, wminusnew = wplus.copy(), wminus.copy()
-    lossnew = np.float('Inf') # make sure to enter the loop
+    lossnew = np.float64('Inf') # make sure to enter the loop
 
     # choose the step size alpha with backtracking line search
     while lossnew > loss + sigma * ((gradwplus * (
@@ -64,9 +70,9 @@ def getStepSize(wplus, wminus, Phi, Y, lmbd, gradwplus,
         # projected gradient step for wplus and wminus with step size alpha
         # i.e. compute x_{t+1} as in the text
         # FILL IN
-        print('fill in with projected gradient step')
-        wplusnew = wplus    # TODO 
-        wminusnew = wminus  # TODO
+        # print('fill in with projected gradient step')
+        wplusnew = ProjectionPositiveOrthant(wplus - alpha * gradwplus)    # TODO 
+        wminusnew = ProjectionPositiveOrthant(wminus - alpha * gradwminus)  # TODO
 
         # compute new value of the objective
         lossnew = LassoObjective(wplusnew, wminusnew, Phi, Y, lmbd)
@@ -87,16 +93,22 @@ def Lasso(Phi, Y, lmbd):
     wplus = np.random.rand(Phi.shape[1], 1)
     wminus = np.random.rand(*wplus.shape)
     loss = LassoObjective(wplus, wminus, Phi, Y, lmbd)
+    print(f'starting loss: {loss}')
 
     counter = 1
     while counter > 0:
+        # print(counter)
         # compute gradients wrt wplus and wminus
         gradwplus, gradwminus = GradLassoObjective(
             wplus, wminus, Phi, Y, lmbd)
+        
+        # print(gradwplus.shape, gradwminus.shape)
 
         # compute new iterates
         wplus, wminus, loss = getStepSize(wplus,
             wminus, Phi, Y, lmbd, gradwplus, gradwminus, loss)
+        
+        # print(loss)
 
         if (counter % 100) == 0:
             # check if stopping criterion is met
@@ -131,8 +143,13 @@ if(__name__ == '__main__'):
     Xval, Yval = data_new['Xtest'], data_new['Ytest']
 
     # TODO  normalize features
+    EX, StdX = X.mean(0), X.std(0)
+    X = (X - EX) / StdX
+    Xval = (Xval - EX) / StdX
 
     # TODO add feature for offset
+    X = np.c_[np.ones((X.shape[0],1)), X]
+    Xval = np.c_[np.ones((Xval.shape[0],1)), Xval]
 
     t_init = time.time()
     w = Lasso(X, Y, lmbd)
@@ -140,7 +157,7 @@ if(__name__ == '__main__'):
 
     LossTrain = L2Loss(X @ w, Y)
     print('training loss: {:.5f}'.format(LossTrain.mean()))
-    Yvalpred = 0 # TODO, compute predictions
+    Yvalpred = Xval @ w # TODO, compute predictions
     LossVal = L2Loss(Yvalpred, Yval)
     print('validation loss: {:.5f}'.format(LossVal.mean()))
     plt.plot(Yval, Yvalpred, '.g')
